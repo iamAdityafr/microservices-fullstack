@@ -8,12 +8,16 @@ import (
 	"net"
 	"os"
 
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("error loading the envs: %v", err)
+	}
 	port := os.Getenv("GRPC_PORT")
 	if port == "" {
 		log.Fatal("Field not found from .env")
