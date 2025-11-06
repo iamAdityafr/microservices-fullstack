@@ -3,6 +3,7 @@ package main
 import (
 	"auth-service/internal/handler"
 	"auth-service/internal/service"
+	"auth-service/utils"
 	"bck/auth/authpb"
 	"log"
 	"net"
@@ -22,7 +23,7 @@ func main() {
 	if port == "" {
 		log.Fatal("Field not found from .env")
 	}
-
+	utils.InitJWT()
 	// grpc setup
 	authService, err := service.NewAuthService()
 	if err != nil {
