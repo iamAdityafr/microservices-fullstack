@@ -11,7 +11,7 @@ import (
 
 var jwtKey []byte
 
-func init() {
+func InitJWT() {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		log.Fatal("Field not found in .env")
