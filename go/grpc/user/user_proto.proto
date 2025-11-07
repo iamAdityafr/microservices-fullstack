@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "./userpb";
+
+service UserService {
+    rpc VerifyCredentials(VerifyCredentialsRequest) returns (VerifyCredentialsResponse);
+}
+
+message VerifyCredentialsRequest {
+    string email = 1;
+    string password = 2;
+}
+
+message VerifyCredentialsResponse {
+    bool valid = 1;
+    string user_id = 2;
+}
