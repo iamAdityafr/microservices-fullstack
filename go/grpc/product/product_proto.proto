@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package product;
+
+option go_package = "./productpb";
+
+service ProductService{
+    rpc GetProductById (GetProductByIdRequest) returns (GetProductByIdResponse);
+    rpc CreateProduct (CreateProductRequest) returns (CreateProductResponse);
+    rpc UpdateProduct (UpdateProductRequest) returns (UpdateProductResponse);
+    rpc DeleteProduct (DeleteProductRequest) returns (DeleteProductResponse);
+}
+
+message Product{
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    string image = 4;
+    int64 pricecents = 5;
+    string category = 6;
+    string created_at = 7;
+    string updated_at = 8;
+
+}
+
+message GetProductByIdRequest{
+    string id = 1;
+}
+message GetProductByIdResponse {
+    Product product = 1;
+}
+message CreateProductRequest{
+    string name = 1;
+    string description = 2;
+    string image = 4;
+    int64 pricecents = 5;
+    string category = 6;
+}
+message CreateProductResponse{
+    Product product = 1;
+}
+message UpdateProductRequest{
+    string id = 1;
+    string name = 2;
+    string category = 3;
+    string image = 4;
+    int64 pricecents = 5;
+    string description = 6;
+}
+message UpdateProductResponse{
+    Product product = 1;
+}
+
+message DeleteProductRequest {
+    int64 id = 1;
+}
+
+message DeleteProductResponse {
+    bool success = 1;
+}
