@@ -79,3 +79,7 @@ func (p *PaymentProducer) SendPaymentFailed(ctx context.Context, evt PaymentFail
 		},
 	})
 }
+
+func (p *PaymentProducer) Close(ctx context.Context) error {
+	return p.writer.Close()
+}
