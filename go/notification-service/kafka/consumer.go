@@ -114,6 +114,7 @@ type PaymentCapturedEvent struct {
 	Amount     int64     `json:"amount"`
 	Currency   string    `json:"currency"`
 	CapturedAt time.Time `json:"captured_at"`
+	UserEmail  string    `json:"user_email"`
 }
 
 type PaymentFailedEvent struct {
@@ -121,6 +122,7 @@ type PaymentFailedEvent struct {
 	OrderID   string    `json:"order_id"`
 	Reason    string    `json:"reason"`
 	FailedAt  time.Time `json:"failed_at"`
+	UserEmail string    `json:"user_email"`
 }
 
 func (n *NotificationConsumer) handleUserCreated(ctx context.Context, data []byte) error {
@@ -207,9 +209,24 @@ func (n *NotificationConsumer) handlePaymentCaptured(ctx context.Context, data [
 	if err := json.Unmarshal(data, &event); err != nil {
 		return err
 	}
-	// TODO add body email
+	emailReq := service.EmailRequest{
+		To:      event.UserEmail,
+		Subject: "Your payment is captured",
+		Body: fmt.Sprintf(`
+		<div style="font-family: Monospace; max-width: 600px; margin: 0 auto;">
+				<h2 style="color: #de64deff;">Your Invoice will be with you soon!</h2>
+				<p>Payment is Done!</p>
+				<div style="background-color: #f5f5f535; padding: 15px; border-radius: 5px; margin: 20px 0;">
+					<p style="font-weight: bold;">Payment ID: %s</p>
+				</div>
+			</div>
+			payment captured
+		`, event.PaymentID),
+		Tags: []string("payment-captured", event.PaymentID),
+	}
 	log.Println("Payment captured", event.OrderID)
-	return nil
+	err := n.emailSender.SendEmail(ctx, emailReq)
+	return err
 }
 
 func (n *NotificationConsumer) handlePaymentFailed(ctx context.Context, data []byte) error {
@@ -217,9 +234,24 @@ func (n *NotificationConsumer) handlePaymentFailed(ctx context.Context, data []b
 	if err := json.Unmarshal(data, &event); err != nil {
 		return err
 	}
-
+	emailReq := service.EmailRequest{
+		To:      event.UserEmail,
+		Subject: "Your payment is failed",
+		Body: fmt.Sprintf(`
+		<div style="font-family: Monospace; max-width: 600px; margin: 0 auto;">
+				<h2 style="color: #de64deff;">Your payment didn't go through :/</h2>
+				<p>Retry it again after some time to confirm you order...</p>
+				<div style="background-color: #f5f5f535; padding: 15px; border-radius: 5px; margin: 20px 0;">
+					<p style="font-weight: bold;">Payment ID: %s</p>
+				</div>
+			</div>
+			payment failed
+		`, event.PaymentID),
+		Tags: []string("payment-failed", event.PaymentID),
+	}
 	log.Println("Payment failed", event.OrderID, event.Reason)
-	return nil
+	err := n.emailSender.SendEmail(ctx, emailReq)
+	return err
 }
 
 func (n *NotificationConsumer) Close() error {
