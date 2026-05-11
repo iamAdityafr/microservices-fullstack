@@ -12,8 +12,6 @@ import (
 	"user-service/internal/database"
 	"user-service/internal/kafka"
 	"user-service/internal/models"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type UserHandler struct {
@@ -50,15 +48,16 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	authResp, err := h.authClient.GeneratePassword(r.Context(), &authpb.BcryptPasswordRequest{Password: req.Password})
 	if err != nil {
-		http.Error(w, "couldn't create hash", http.StatusInternalServerError)
+		http.Error(w, "auth response err: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	user := &models.User{
 		Name:     req.Name,
 		Email:    req.Email,
-		Password: string(hashed),
+		Password: authResp.HashedPassword,
 	}
 	err = h.userRepo.CreateUser(r.Context(), user)
 	if err != nil {

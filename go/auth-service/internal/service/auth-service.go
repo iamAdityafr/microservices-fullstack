@@ -10,6 +10,7 @@ import (
 type AuthServiceInterface interface {
 	Authenticate(email, password, hashedPassword string) (token string, err error)
 	ValidateToken(token string) (valid bool, email string)
+	GeneratePassword(password string) (string, error)
 }
 
 type AuthService struct{}
@@ -38,4 +39,11 @@ func (s *AuthService) ValidateToken(token string) (valid bool, userId string) {
 		return false, ""
 	}
 	return true, claims.UserID
+}
+func (s *AuthService) GeneratePassword(password string) (string, error) {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashed), nil
 }

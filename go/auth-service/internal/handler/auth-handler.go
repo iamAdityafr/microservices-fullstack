@@ -43,3 +43,10 @@ func (h *AuthHandler) ValidateToken(ctx context.Context, req *authpb.ValidateTok
 		UserId: userid,
 	}, nil
 }
+func (h *AuthHandler) GeneratePassword(ctx context.Context, req *authpb.BcryptPasswordRequest) (*authpb.BcryptPasswordResponse, error) {
+	hashed, err := h.authService.GeneratePassword(req.Password)
+	if err != nil || req.Password == "" {
+		return nil, err
+	}
+	return &authpb.BcryptPasswordResponse{HashedPassword: hashed}, nil
+}
