@@ -4,17 +4,20 @@ import (
 	"bck/auth/authpb"
 	"bck/user/userpb"
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 	"user-service/internal/database"
 	handler "user-service/internal/handlers"
 	"user-service/internal/kafka"
+	"user-service/logger"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -35,12 +38,25 @@ func main() {
 	mongoURI := os.Getenv("MONGO_URI")
 	dbName := os.Getenv("DB_NAME")
 	authAddr := os.Getenv("AUTH_SERVICE_ADDR")
+	logDev := os.Getenv("LOG_DEV")
 	topic := os.Getenv("KAFKA_TOPIC")
 	brokersEnv := os.Getenv("KAFKA_BROKERS")
 	if brokersEnv == "" {
 		brokersEnv = "localhost:9092"
 	}
 	brokers := strings.Split(brokersEnv, ",")
+
+	// init logger
+	logMode, err := strconv.ParseBool(logDev)
+	if err != nil {
+		fmt.Println("err parsing bool for logDev")
+		return
+	}
+	logger, err := logger.InitLogger(logMode)
+	if err != nil {
+		fmt.Println("err in init logger")
+		return
+	}
 
 	// connect db
 	log.Println("Connecting mongodb...")
@@ -58,7 +74,7 @@ func main() {
 	// init services
 	authClient := authpb.NewAuthServiceClient(authConn)
 	userProducer := kafka.NewUserProducer(brokers, topic)
-	userHandler := handler.NewUserHandler(repo, authClient, userProducer)
+	userHandler := handler.NewUserHandler(repo, logger, authClient, userProducer)
 	// Set up HTTP handlers
 	http.HandleFunc("/profile", userHandler.Profile)
 	http.HandleFunc("/register", userHandler.Register)

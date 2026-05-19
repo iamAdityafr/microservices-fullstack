@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 	"user-service/internal/models"
 
@@ -62,7 +61,6 @@ func (repo *mongoRepo) GetUserByEmail(ctx context.Context, email string) (*model
 		}
 		return nil, err
 	}
-	log.Printf("DECODING to %T", &user)
 	return &user, nil
 }
 
