@@ -18,6 +18,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -25,13 +26,15 @@ import (
 type ProductHandler struct {
 	productpb.UnimplementedProductServiceServer
 	productRepo     database.ProductRepository
+	logger          *zap.Logger
 	productProducer *kafka.ProductProducer
 	authClient      authpb.AuthServiceClient
 }
 
-func NewProductHandler(repo database.ProductRepository, authClient authpb.AuthServiceClient, producer *kafka.ProductProducer) *ProductHandler {
+func NewProductHandler(repo database.ProductRepository, logger *zap.Logger, authClient authpb.AuthServiceClient, producer *kafka.ProductProducer) *ProductHandler {
 	return &ProductHandler{
 		productRepo:     repo,
+		logger:          logger,
 		authClient:      authClient,
 		productProducer: producer,
 	}
@@ -42,6 +45,7 @@ func (h *ProductHandler) GetAllProductsHTTP(w http.ResponseWriter, r *http.Reque
 
 	products, err := h.productRepo.GetAllProducts(ctx)
 	if err != nil {
+		h.logger.Error("err fetching all products")
 		http.Error(w, "couldn't fetch products ", http.StatusInternalServerError)
 		return
 	}
@@ -52,30 +56,41 @@ func (h *ProductHandler) GetAllProductsHTTP(w http.ResponseWriter, r *http.Reque
 
 func (h *ProductHandler) CreateProductHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing authorization cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "missing auth cookie", http.StatusUnauthorized)
 		return
 	}
 	token := cookie.Value
 
-	authResp, err := h.authClient.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{Token: token})
+	authResp, err := h.authClient.ValidateToken(r.Context(), &authpb.ValidateTokenRequest{Token: token})
 	if err != nil {
-		log.Println("auth validation error:", err)
+		h.logger.Error("token validation RPC failed",
+			zap.Error(err),
+			zap.String("path", r.URL.Path),
+			zap.String("method", r.Method),
+		)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	if !authResp.Valid {
-		log.Println("invalid token for user:", authResp.UserId)
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
+		h.logger.Warn("failed to parse multipart form",
+			zap.Error(err),
+			zap.String("path", r.URL.Path),
+			zap.String("method", r.Method),
+		)
 		http.Error(w, "cannot parse form data", http.StatusBadRequest)
 		return
 	}
@@ -86,18 +101,21 @@ func (h *ProductHandler) CreateProductHTTP(w http.ResponseWriter, r *http.Reques
 	description := r.FormValue("description")
 
 	if name == "" || priceStr == "" || category == "" || description == "" {
+		h.logger.Warn("missing required fields")
 		http.Error(w, "uhh! some values are missing", http.StatusBadRequest)
 		return
 	}
 
 	priceCents, err := strconv.ParseInt(priceStr, 10, 64)
 	if err != nil {
+		h.logger.Warn("invalid price value", zap.String("price", priceStr), zap.Error(err))
 		http.Error(w, "invalid pricecents value", http.StatusBadRequest)
 		return
 	}
 
 	file, handler, err := r.FormFile("image")
 	if err != nil {
+		h.logger.Warn("missing image file", zap.Error(err))
 		http.Error(w, "missing image file", http.StatusBadRequest)
 		return
 	}
@@ -108,7 +126,8 @@ func (h *ProductHandler) CreateProductHTTP(w http.ResponseWriter, r *http.Reques
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
 		err = os.MkdirAll(uploadDir, os.ModePerm)
 		if err != nil {
-			http.Error(w, "cannot create upload dir", http.StatusInternalServerError)
+			h.logger.Error("creating dir err", zap.Error(err))
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 	}
@@ -116,13 +135,15 @@ func (h *ProductHandler) CreateProductHTTP(w http.ResponseWriter, r *http.Reques
 	imagePath := filepath.Join(uploadDir, handler.Filename)
 	out, err := os.Create(imagePath)
 	if err != nil {
-		http.Error(w, "cannot save image", http.StatusInternalServerError)
+		h.logger.Error("creating image file err", zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	defer out.Close()
 	_, err = io.Copy(out, file)
 	if err != nil {
-		http.Error(w, "cannot save image", http.StatusInternalServerError)
+		h.logger.Error("err copying image file", zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	p := &models.Product{
@@ -135,6 +156,7 @@ func (h *ProductHandler) CreateProductHTTP(w http.ResponseWriter, r *http.Reques
 
 	createdProduct, err := h.productRepo.CreateProduct(r.Context(), p)
 	if err != nil {
+		h.logger.Error("err creating product in db", zap.Error(err))
 		http.Error(w, "failed to create product", http.StatusInternalServerError)
 		return
 	}
@@ -146,35 +168,43 @@ func (h *ProductHandler) CreateProductHTTP(w http.ResponseWriter, r *http.Reques
 
 func (h *ProductHandler) GetProductByIdHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing auth cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "missing auth cookie", http.StatusUnauthorized)
 		return
 	}
 	token := cookie.Value
 
 	authResp, err := h.authClient.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{Token: token})
-	if err != nil || !authResp.Valid {
+	if err != nil {
+		h.logger.Error("token validation RPC failed", zap.Error(err), zap.String("path", r.URL.Path))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-
+	if !authResp.Valid {
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
+	}
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		http.Error(w, "missing product id", http.StatusBadRequest)
+		h.logger.Warn("missing product id", zap.String("path", r.URL.Path))
+		http.Error(w, "internal server error", http.StatusBadRequest)
 		return
 	}
 	if _, err := primitive.ObjectIDFromHex(id); err != nil {
+		h.logger.Error("invalid product id", zap.Error(err), zap.String("path", r.URL.Path))
 		http.Error(w, "invalid product id", http.StatusBadRequest)
 		return
 	}
 
 	product, err := h.productRepo.GetProductById(r.Context(), id)
 	if err != nil {
+		h.logger.Error("product not found", zap.Error(err), zap.String("path", r.URL.Path))
 		http.Error(w, "product not found", http.StatusNotFound)
 		return
 	}
@@ -186,23 +216,30 @@ func (h *ProductHandler) GetProductByIdHTTP(w http.ResponseWriter, r *http.Reque
 
 func (h *ProductHandler) SearchProductHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing auth cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "missing auth cookie", http.StatusUnauthorized)
 		return
 	}
 
 	token := cookie.Value
 	authResp, err := h.authClient.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{Token: token})
-	if err != nil || !authResp.Valid {
+	if err != nil {
+		h.logger.Error("token validation RPC failed", zap.Error(err), zap.String("path", r.URL.Path))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	if !authResp.Valid {
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
+	}
 	query := r.URL.Query().Get("q")
 	if query == "" {
+		h.logger.Warn("missing search query field", zap.String("path", r.URL.Path))
 		http.Error(w, "missing search query", http.StatusBadRequest)
 		return
 	}
@@ -216,7 +253,8 @@ func (h *ProductHandler) SearchProductHTTP(w http.ResponseWriter, r *http.Reques
 
 	products, err := h.productRepo.SearchProduct(r.Context(), filter, 0, 0)
 	if err != nil {
-		http.Error(w, "couldn't search for products", http.StatusInternalServerError)
+		h.logger.Error("couldn't search for products")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -226,23 +264,31 @@ func (h *ProductHandler) SearchProductHTTP(w http.ResponseWriter, r *http.Reques
 
 func (h *ProductHandler) UpdateProductHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing auth cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "missing authorization header", http.StatusUnauthorized)
 		return
 	}
 
 	token := cookie.Value
 	authResp, err := h.authClient.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{Token: token})
-	if err != nil || !authResp.Valid {
+	if err != nil {
+		h.logger.Error("token validation RPC failed", zap.Error(err), zap.String("path", r.URL.Path))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	if !authResp.Valid {
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
+	}
+
 	id := r.URL.Query().Get("id")
 	if id == "" {
+		h.logger.Warn("missing product id", zap.String("path", r.URL.Path))
 		http.Error(w, "missing product ID", http.StatusBadRequest)
 		return
 	}
@@ -255,6 +301,7 @@ func (h *ProductHandler) UpdateProductHTTP(w http.ResponseWriter, r *http.Reques
 		Description *string `json:"description,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error("err decoding request body", zap.String("path", r.URL.Path), zap.Error(err))
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -282,7 +329,8 @@ func (h *ProductHandler) UpdateProductHTTP(w http.ResponseWriter, r *http.Reques
 
 	updatedProduct, err := h.productRepo.UpdateProduct(r.Context(), id, changes)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.logger.Error("error updating product in db", zap.Error(err), zap.String("path", r.URL.Path))
+		http.Error(w, "internal server error", http.StatusBadRequest)
 		return
 	}
 
@@ -297,6 +345,7 @@ func (h *ProductHandler) UpdateProductHTTP(w http.ResponseWriter, r *http.Reques
 
 	if err := h.productProducer.PublishProductUpdated(r.Context(), event); err != nil {
 		log.Printf("Failed to publish ProductUpdatedEvent for product %s: %v", updatedProduct.ID.Hex(), err)
+		h.logger.Error("failed to publish product event", zap.String("event-name", event.Name))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -306,27 +355,41 @@ func (h *ProductHandler) UpdateProductHTTP(w http.ResponseWriter, r *http.Reques
 
 func (h *ProductHandler) DeleteProductHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing authorization cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "missing auth cookie", http.StatusUnauthorized)
 		return
 	}
 	token := cookie.Value
 	authResp, err := h.authClient.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{Token: token})
-	if err != nil || !authResp.Valid {
+	if err != nil {
+		h.logger.Error("token validation RPC failed",
+			zap.Error(err),
+			zap.String("path", r.URL.Path),
+			zap.String("method", r.Method),
+		)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !authResp.Valid {
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		http.Error(w, "id missing", http.StatusBadRequest)
+		h.logger.Warn("missing product id", zap.String("path", r.URL.Path))
+		http.Error(w, "internal server error", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.productRepo.DeleteProduct(r.Context(), id); err != nil {
+		h.logger.Warn("product not found", zap.Error(err))
 		http.Error(w, "product not found", http.StatusBadRequest)
 		return
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"bck/auth/authpb"
 	"bck/product/productpb"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"product-service/internal/database"
 	"product-service/internal/handlers"
 	"product-service/internal/kafka"
+	"product-service/logger"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,9 +34,22 @@ func main() {
 	dbName := os.Getenv("DB_NAME")
 	authAddr := os.Getenv("AUTH_SERVICE_ADDR")
 	httpPort := os.Getenv("HTTP_PORT")
+	logDev := os.Getenv("LOG_DEV")
 	topic := os.Getenv("KAFKA_TOPIC")
 	brokersENV := os.Getenv("KAFKA_BROKERS")
 	brokers := strings.Split(brokersENV, ",")
+
+	// init logger
+	logMode, err := strconv.ParseBool(logDev)
+	if err != nil {
+		fmt.Println("err parsing bool for logDev")
+		return
+	}
+	logger, err := logger.InitLogger(logMode)
+	if err != nil {
+		fmt.Println("err in init logger")
+		return
+	}
 
 	// mongodb connection
 	log.Println("connecting mongodb")
@@ -50,7 +66,7 @@ func main() {
 
 	authClient := authpb.NewAuthServiceClient(authConn)
 	productProducer := kafka.NewProductProducer(brokers, topic)
-	productHandler := handlers.NewProductHandler(repo, authClient, productProducer)
+	productHandler := handlers.NewProductHandler(repo, logger, authClient, productProducer)
 
 	// grpc
 	server := grpc.NewServer(grpc.Creds(insecure.NewCredentials()))
