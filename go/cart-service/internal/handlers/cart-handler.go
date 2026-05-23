@@ -8,71 +8,81 @@ import (
 	"cart-service/internal/models"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type CartHandler struct {
 	cartpb.UnimplementedCartServiceServer
 	repo          database.CartRepository
+	logger        *zap.Logger
 	productClient productpb.ProductServiceClient
 	authClient    authpb.AuthServiceClient
 }
 
-func NewCartHandler(repo database.CartRepository, productClient productpb.ProductServiceClient, authClient authpb.AuthServiceClient) *CartHandler {
+func NewCartHandler(repo database.CartRepository, logger *zap.Logger, productClient productpb.ProductServiceClient, authClient authpb.AuthServiceClient) *CartHandler {
 	return &CartHandler{
 		repo:          repo,
+		logger:        logger,
 		productClient: productClient,
 		authClient:    authClient,
 	}
 }
 func (h *CartHandler) GetCartHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
-		fmt.Println("No authorization cookie:", err)
-		http.Error(w, "not authorized", http.StatusUnauthorized)
+		h.logger.Warn("missing authorization cookie", zap.String("path", r.URL.Path))
+		http.Error(w, "auth cookie missing", http.StatusUnauthorized)
 		return
 	}
 
 	authResp, err := h.authClient.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{Token: cookie.Value})
 	if err != nil {
-		fmt.Println("Token validation error:", err)
+		h.logger.Error("token validation RPC failed",
+			zap.Error(err),
+			zap.String("path", r.URL.Path),
+			zap.String("method", r.Method),
+		)
 		http.Error(w, "failed to validate token", http.StatusUnauthorized)
 		return
 	}
 	if !authResp.Valid {
-		http.Error(w, "failed to validate token", http.StatusUnauthorized)
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	items, err := h.repo.GetCart(r.Context(), authResp.UserId)
 	if err != nil {
-		http.Error(w, "could not get cart items", http.StatusInternalServerError)
+		h.logger.Error("err fetching cart items", zap.String("path", r.URL.Path), zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// fmt.Println("got items:", items)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(items); err != nil {
-		fmt.Println("Failed to encode JSON:", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		h.logger.Error("json encoding error", zap.String("path", r.URL.Path), zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
-
 }
 
 func (h *CartHandler) AddToCartHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing auth cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "not authorized", http.StatusUnauthorized)
 		return
 	}
@@ -82,12 +92,13 @@ func (h *CartHandler) AddToCartHTTP(w http.ResponseWriter, r *http.Request) {
 		Token: token,
 	})
 	if err != nil {
-		log.Println("auth validation error:", err)
+		h.logger.Error("err validating token RPC", zap.Error(err), zap.String("path", r.URL.Path))
 		http.Error(w, "failed to validate token", http.StatusUnauthorized)
 		return
 	}
 	if !authResp.Valid {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -99,19 +110,20 @@ func (h *CartHandler) AddToCartHTTP(w http.ResponseWriter, r *http.Request) {
 	var req AddToCartRequest
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		h.logger.Error("err decoding cart body", zap.String("path", r.URL.Path), zap.Error(err))
+		http.Error(w, "internal server error", http.StatusBadRequest)
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	productID := req.ProductID
-	log.Println("Fetching product with ID:", productID)
 
 	productResp, err := h.productClient.GetProductById(ctx, &productpb.GetProductByIdRequest{
 		Id: productID,
 	})
 	if err != nil {
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		h.logger.Error("getProduct RPC failed", zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -126,6 +138,7 @@ func (h *CartHandler) AddToCartHTTP(w http.ResponseWriter, r *http.Request) {
 
 	addedItem, err := h.repo.AddToCart(context.Background(), userID, item)
 	if err != nil {
+		h.logger.Error("err adding item/s to cart", zap.String("path", r.URL.Path), zap.Error(err))
 		http.Error(w, "fail add item to cart", http.StatusInternalServerError)
 		return
 	}
@@ -135,11 +148,13 @@ func (h *CartHandler) AddToCartHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func (h *CartHandler) RemoveFromCartHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
+		h.logger.Warn("method not allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	cookie, err := r.Cookie("Authorization")
 	if err != nil {
+		h.logger.Warn("missing authorization cookie", zap.String("path", r.URL.Path))
 		http.Error(w, "not authorized", http.StatusUnauthorized)
 	}
 	token := cookie.Value
@@ -148,11 +163,17 @@ func (h *CartHandler) RemoveFromCartHTTP(w http.ResponseWriter, r *http.Request)
 		Token: token,
 	})
 	if err != nil {
-		http.Error(w, "fail to validate token", http.StatusUnauthorized)
+		h.logger.Error("token validation RPC failed",
+			zap.Error(err),
+			zap.String("path", r.URL.Path),
+			zap.String("method", r.Method),
+		)
+		http.Error(w, "internal server error", http.StatusUnauthorized)
 		return
 	}
 	if !authResp.Valid {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+		h.logger.Warn("invalid token", zap.String("path", r.URL.Path))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -163,13 +184,15 @@ func (h *CartHandler) RemoveFromCartHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	var req RemoveFromCartRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error("err decoding cart body", zap.String("path", r.URL.Path), zap.Error(err))
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	err = h.repo.RemoveFromCart(context.Background(), userID, req.ProductID)
 	if err != nil {
-		http.Error(w, "failed to remove item from cart", http.StatusInternalServerError)
+		h.logger.Error("err removing from cart", zap.String("path", r.URL.Path), zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 

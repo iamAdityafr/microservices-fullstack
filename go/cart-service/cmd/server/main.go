@@ -6,10 +6,13 @@ import (
 	"bck/product/productpb"
 	"cart-service/internal/database"
 	"cart-service/internal/handlers"
+	"cart-service/internal/logger"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -28,10 +31,23 @@ func main() {
 	authgrpcport := os.Getenv("AUTH_GRPC_PORT")
 	productgrpcport := os.Getenv("PRODUCT_GRPC_PORT")
 	dbname := os.Getenv("DB_NAME")
+	logDev := os.Getenv("LOG_DEV")
 	mongoUri := os.Getenv("MONGO_URI")
 	httpPort := os.Getenv("HTTP_PORT")
 	// kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
 	// kafkaTopic := os.Getenv("KAFKA_TOPIC")
+
+	// init logger
+	logMode, err := strconv.ParseBool(logDev)
+	if err != nil {
+		fmt.Println("err parsing bool for logDev")
+		return
+	}
+	logger, err := logger.InitLogger(logMode)
+	if err != nil {
+		fmt.Println("err in init logger")
+		return
+	}
 
 	// db connection
 	log.Println("connect to mongodb")
@@ -55,7 +71,7 @@ func main() {
 	defer authConn.Close()
 	productClient := productpb.NewProductServiceClient(productConn)
 	authClient := authpb.NewAuthServiceClient(authConn)
-	carthandler := handlers.NewCartHandler(repo, productClient, authClient)
+	carthandler := handlers.NewCartHandler(repo, logger, productClient, authClient)
 	// cartProducer := kafka.NewCartProducer(kafkaBrokers, kafkaTopic)
 	// cartConsumer := kafka.NewCartConsumer(kafkaBrokers, kafkaTopic, "cart-service-group", repo)
 
