@@ -2,14 +2,17 @@ package main
 
 import (
 	"auth-service/internal/handler"
+	"auth-service/internal/logger"
 	"auth-service/internal/service"
 	"auth-service/utils"
 	"bck/auth/authpb"
-	"log"
+	"fmt"
 	"net"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -17,19 +20,36 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("error loading the envs: %v", err)
+		fmt.Printf("error loading the envs: %v", err)
+		return
 	}
 	port := os.Getenv("GRPC_PORT")
 	if port == "" {
-		log.Fatal("Field not found from .env")
+		fmt.Print("Field not found from .env")
+		return
 	}
+	logDev := os.Getenv("LOG_DEV")
 	utils.InitJWT()
+
+	// init logger
+	logMode, err := strconv.ParseBool(logDev)
+	if err != nil {
+		fmt.Println("err parsing bool for logDev")
+		return
+	}
+	logger, err := logger.InitLogger(logMode)
+	if err != nil {
+		fmt.Println("err in init logger")
+		return
+	}
+
 	// grpc setup
 	authService, err := service.NewAuthService()
 	if err != nil {
-		log.Fatalf("Failed to create auth service: %v", err)
+		logger.Error("failed to create auth service", zap.Error(err))
+		return
 	}
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(logger, authService)
 	server := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 	)
@@ -38,11 +58,12 @@ func main() {
 	reflection.Register(server)
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Failed to listen on port %s: %v", port, err)
+		logger.Error("failed to listen on port", zap.String("port", port), zap.Error(err))
+		return
 	}
-
-	log.Printf("AuthService server listening on port %s", port)
+	logger.Info("AuthService RPC server is listening", zap.String("port", port))
 	if err := server.Serve(lis); err != nil {
-		log.Fatalf("Error in serving grpc server: %v", err)
+		logger.Error("err in servicing grpc server", zap.Error(err))
+		return
 	}
 }

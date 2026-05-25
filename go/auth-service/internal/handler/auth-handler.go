@@ -4,16 +4,19 @@ import (
 	"auth-service/internal/service"
 	"bck/auth/authpb"
 	"context"
-	"log"
+
+	"go.uber.org/zap"
 )
 
 type AuthHandler struct {
 	authpb.UnimplementedAuthServiceServer
+	logger      *zap.Logger
 	authService *service.AuthService
 }
 
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+func NewAuthHandler(logger *zap.Logger, authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{
+		logger:      logger,
 		authService: authService,
 	}
 }
@@ -21,6 +24,7 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 func (h *AuthHandler) Authenticate(ctx context.Context, req *authpb.AuthRequest) (*authpb.AuthResponse, error) {
 	token, err := h.authService.Authenticate(req.Email, req.Password, req.HashedPassword, req.UserId)
 	if err != nil {
+		h.logger.Error("err in authenticating user", zap.String("email", req.Email), zap.Error(err))
 		return &authpb.AuthResponse{
 			Token:  "",
 			UserId: "",
@@ -37,7 +41,7 @@ func (h *AuthHandler) Authenticate(ctx context.Context, req *authpb.AuthRequest)
 
 func (h *AuthHandler) ValidateToken(ctx context.Context, req *authpb.ValidateTokenRequest) (*authpb.ValidateTokenResponse, error) {
 	valid, userid := h.authService.ValidateToken(req.Token)
-	log.Printf("[auth-service] ValidateTokenRequest token=%s with userId=%s", req.Token, userid)
+
 	return &authpb.ValidateTokenResponse{
 		Valid:  valid,
 		UserId: userid,
@@ -46,6 +50,7 @@ func (h *AuthHandler) ValidateToken(ctx context.Context, req *authpb.ValidateTok
 func (h *AuthHandler) GeneratePassword(ctx context.Context, req *authpb.BcryptPasswordRequest) (*authpb.BcryptPasswordResponse, error) {
 	hashed, err := h.authService.GeneratePassword(req.Password)
 	if err != nil || req.Password == "" {
+		h.logger.Error("err generating password", zap.Error(err))
 		return nil, err
 	}
 	return &authpb.BcryptPasswordResponse{HashedPassword: hashed}, nil
