@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"bck/auth/authpb"
-	"bck/user/userpb"
+	"grpc_module/auth/authpb"
+	"grpc_module/user/userpb"
 	"user-service/internal/database"
 	"user-service/internal/kafka"
 	"user-service/internal/models"

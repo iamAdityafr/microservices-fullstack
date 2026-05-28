@@ -1,0 +1,12 @@
+go 1.26.3
+
+use (
+	./api-gateway
+	./auth-service
+	./cart-service
+	./grpc
+	./notification-service
+	./payment-service
+	./product-service
+	./user-service
+)

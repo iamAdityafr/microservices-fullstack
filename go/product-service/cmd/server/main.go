@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bck/auth/authpb"
-	"bck/product/productpb"
 	"fmt"
+	"grpc_module/auth/authpb"
+	"grpc_module/product/productpb"
 	"log"
 	"net"
 	"net/http"

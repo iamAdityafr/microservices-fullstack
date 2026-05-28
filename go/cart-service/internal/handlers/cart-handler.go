@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"bck/auth/authpb"
-	"bck/cart/cartpb"
-	"bck/product/productpb"
 	"cart-service/internal/database"
 	"cart-service/internal/models"
 	"context"
 	"encoding/json"
+	"grpc_module/auth/authpb"
+	"grpc_module/cart/cartpb"
+	"grpc_module/product/productpb"
 	"log"
 	"net/http"
 	"time"

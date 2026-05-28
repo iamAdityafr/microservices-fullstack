@@ -3,7 +3,6 @@ module auth-service
 go 1.25.1
 
 require (
-	bck v0.0.0-00010101000000-000000000000
 	github.com/joho/godotenv v1.5.1
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.42.0
@@ -20,5 +19,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
-
-replace bck => ../grpc

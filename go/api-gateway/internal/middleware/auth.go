@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"bck/auth/authpb"
+	"grpc_module/auth/authpb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

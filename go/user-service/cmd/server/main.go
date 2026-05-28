@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bck/auth/authpb"
-	"bck/user/userpb"
 	"context"
 	"fmt"
+	"grpc_module/auth/authpb"
+	"grpc_module/user/userpb"
 	"log"
 	"net"
 	"net/http"
