@@ -3,7 +3,6 @@ module payment-service
 go 1.25.1
 
 require (
-	bck v0.0.0-00010101000000-000000000000
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.49
 	github.com/stripe/stripe-go/v78 v78.12.0
@@ -29,5 +28,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
-
-replace bck => ../grpc

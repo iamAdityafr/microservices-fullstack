@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"bck/auth/authpb"
-	"bck/product/productpb"
 	"context"
 	"encoding/json"
+	"grpc_module/auth/authpb"
+	"grpc_module/product/productpb"
 	"io"
 	"log"
 	"net/http"

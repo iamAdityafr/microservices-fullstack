@@ -1,4 +1,4 @@
-module bck
+module grpc_module
 
 go 1.25.1
 

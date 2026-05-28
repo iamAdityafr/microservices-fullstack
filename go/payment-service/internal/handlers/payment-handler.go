@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"bck/auth/authpb"
 	"context"
 	"encoding/json"
+	"grpc_module/auth/authpb"
 	"io"
 	"log"
 	"net/http"

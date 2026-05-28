@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bck/auth/authpb"
-	"bck/cart/cartpb"
-	"bck/product/productpb"
 	"cart-service/internal/database"
 	"cart-service/internal/handlers"
 	"cart-service/internal/logger"
 	"fmt"
+	"grpc_module/auth/authpb"
+	"grpc_module/cart/cartpb"
+	"grpc_module/product/productpb"
 	"log"
 	"net"
 	"net/http"

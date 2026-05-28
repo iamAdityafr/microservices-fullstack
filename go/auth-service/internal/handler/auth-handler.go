@@ -2,8 +2,8 @@ package handler
 
 import (
 	"auth-service/internal/service"
-	"bck/auth/authpb"
 	"context"
+	"grpc_module/auth/authpb"
 
 	"go.uber.org/zap"
 )

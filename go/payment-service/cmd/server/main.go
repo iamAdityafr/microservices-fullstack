@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bck/auth/authpb"
 	"context"
+	"grpc_module/auth/authpb"
 	"log"
 	"net/http"
 	"os"
