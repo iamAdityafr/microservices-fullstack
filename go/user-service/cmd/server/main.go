@@ -75,8 +75,11 @@ func main() {
 	authClient := authpb.NewAuthServiceClient(authConn)
 	userProducer := kafka.NewUserProducer(brokers, topic)
 	userHandler := handler.NewUserHandler(repo, logger, authClient, userProducer)
-
-	http.Handle("/api/", userHandler.Routes())
+	// Set up HTTP handlers
+	http.HandleFunc("/profile", userHandler.Profile)
+	http.HandleFunc("/register", userHandler.Register)
+	http.HandleFunc("/login", userHandler.Login)
+	http.HandleFunc("/logout", userHandler.Logout)
 
 	go func() {
 		log.Printf("User HTTP service listening on port %s", httpPort)
