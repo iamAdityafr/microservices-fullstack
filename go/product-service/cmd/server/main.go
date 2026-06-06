@@ -68,6 +68,9 @@ func main() {
 	productProducer := kafka.NewProductProducer(brokers, topic)
 	productHandler := handlers.NewProductHandler(repo, logger, authClient, productProducer)
 
+	// http handler
+	http.Handle("/api/", productHandler.Routes())
+
 	// grpc
 	server := grpc.NewServer(grpc.Creds(insecure.NewCredentials()))
 	productpb.RegisterProductServiceServer(server, productHandler)
@@ -77,14 +80,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", grpcport, err)
 	}
-
-	// http handlers
-	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
-	http.HandleFunc("/product", productHandler.CreateProductHTTP)
-	http.HandleFunc("/products/get", productHandler.GetAllProductsHTTP)
-	http.HandleFunc("/products/search", productHandler.SearchProductHTTP)
-	http.HandleFunc("/products/update", productHandler.UpdateProductHTTP)
-	http.HandleFunc("/products/delete", productHandler.DeleteProductHTTP)
 
 	go func() {
 		log.Printf("Product HTTP service listneing on port %s ", httpPort)

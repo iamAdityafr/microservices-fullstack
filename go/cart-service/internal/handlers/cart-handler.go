@@ -31,6 +31,13 @@ func NewCartHandler(repo database.CartRepository, logger *zap.Logger, productCli
 		authClient:    authClient,
 	}
 }
+func (h *CartHandler) Routes() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/cart/getcart", h.GetCartHTTP)
+	mux.HandleFunc("/cart/add", h.AddToCartHTTP)
+	mux.HandleFunc("/cart/remove", h.RemoveFromCartHTTP)
+	return mux
+}
 func (h *CartHandler) GetCartHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.logger.Warn("method not allowed")

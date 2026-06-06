@@ -35,7 +35,14 @@ func NewPaymentHandler(repo database.PaymentRepository, producer *kafka.PaymentP
 		authClient: authClient,
 	}
 }
-
+func (h *PaymentHandler) Routes() http.Handler {
+	mux := http.NewServeMux()
+	http.HandleFunc("/payments/intent", h.CreateIntent)
+	mux.HandleFunc("/payments/intent", h.CreateIntent)
+	mux.HandleFunc("/payments/", h.GetPayment) // /payments/{orderID}
+	mux.HandleFunc("/payments/webhook", h.HandleWebhook)
+	return mux
+}
 func (h *PaymentHandler) CreateIntent(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received CreateIntent request")
 
