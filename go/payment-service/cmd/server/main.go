@@ -65,7 +65,12 @@ func main() {
 	stripeProvider := service.NewStripeProvider(stripeKey, stripeWebhook, kafka.NewPaymentProducer(kafkaBrokers, "payment"))
 
 	handler := handlers.NewPaymentHandler(repo, paymentProducer, stripeProvider, authClient)
-	http.Handle("/api", handler.Routes())
+
+	http.HandleFunc("/payments/intent", handler.CreateIntent)
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /payments/intent", handler.CreateIntent)
+	mux.HandleFunc("GET /payments/", handler.GetPayment) // /payments/{orderID}
+	mux.HandleFunc("POST /payments/webhook", handler.HandleWebhook)
 
 	go func() {
 		log.Println("Payment HTTP listening on :8085")

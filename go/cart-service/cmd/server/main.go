@@ -79,8 +79,10 @@ func main() {
 	cartpb.RegisterCartServiceServer(server, carthandler)
 	reflection.Register(server)
 
-	// http handler
-	http.Handle("/api/", carthandler.Routes())
+	// http handlers
+	http.HandleFunc("/cart/getcart", carthandler.GetCartHTTP)
+	http.HandleFunc("/cart/add", carthandler.AddToCartHTTP)
+	http.HandleFunc("/cart/remove", carthandler.RemoveFromCartHTTP)
 
 	go func() {
 		log.Printf("Product HTTP service listneing on port %s ", httpPort)
