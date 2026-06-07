@@ -41,6 +41,7 @@ func (h *PaymentHandler) Routes() http.Handler {
 	mux.HandleFunc("GET /payments/", h.GetPayment) // /payments/{orderID}
 	mux.HandleFunc("/payments/intent", h.CreateIntent)
 	mux.HandleFunc("POST /payments/webhook", h.HandleWebhook)
+
 	return mux
 }
 func (h *PaymentHandler) CreateIntent(w http.ResponseWriter, r *http.Request) {

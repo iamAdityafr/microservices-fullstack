@@ -46,6 +46,7 @@ func (h *UserHandler) Routes() http.Handler {
 	mux.HandleFunc("/logout", h.Logout)
 	return mux
 }
+
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.logger.Warn("method not allowed")

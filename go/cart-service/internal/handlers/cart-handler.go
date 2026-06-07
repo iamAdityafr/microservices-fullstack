@@ -31,7 +31,6 @@ func NewCartHandler(repo database.CartRepository, logger *zap.Logger, productCli
 		authClient:    authClient,
 	}
 }
-
 func (h *CartHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	http.HandleFunc("/cart/getcart", h.GetCartHTTP)

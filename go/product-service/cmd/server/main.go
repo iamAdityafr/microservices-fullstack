@@ -68,6 +68,9 @@ func main() {
 	productProducer := kafka.NewProductProducer(brokers, topic)
 	productHandler := handlers.NewProductHandler(repo, logger, authClient, productProducer)
 
+	// http handler
+	http.Handle("/api/", productHandler.Routes())
+
 	// grpc
 	server := grpc.NewServer(grpc.Creds(insecure.NewCredentials()))
 	productpb.RegisterProductServiceServer(server, productHandler)
