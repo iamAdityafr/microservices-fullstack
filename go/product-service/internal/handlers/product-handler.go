@@ -39,6 +39,16 @@ func NewProductHandler(repo database.ProductRepository, logger *zap.Logger, auth
 		productProducer: producer,
 	}
 }
+func (h *ProductHandler) Routes() http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+	mux.HandleFunc("/product", h.CreateProductHTTP)
+	mux.HandleFunc("/products/get", h.GetAllProductsHTTP)
+	mux.HandleFunc("/products/search", h.SearchProductHTTP)
+	mux.HandleFunc("/products/update", h.UpdateProductHTTP)
+	mux.HandleFunc("/products/delete", h.DeleteProductHTTP)
+	return mux
+}
 func (h *ProductHandler) GetAllProductsHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

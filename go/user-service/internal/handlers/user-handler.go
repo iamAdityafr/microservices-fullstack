@@ -38,6 +38,14 @@ func NewUserHandler(userRepo database.UserRepository, logger *zap.Logger, authCl
 	}
 }
 
+func (h *UserHandler) Routes() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/profile", h.Profile)
+	mux.HandleFunc("/register", h.Register)
+	mux.HandleFunc("/login", h.Login)
+	mux.HandleFunc("/logout", h.Logout)
+	return mux
+}
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.logger.Warn("method not allowed")
