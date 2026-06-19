@@ -1,0 +1,22 @@
+app:
+    name: "user-service"
+    port: "8000"
+
+db:
+    addr:
+        host: "mongodb"
+        port: "27017"
+    dbname: "users"
+    authsource: "admin"
+
+grpc:
+    authservice:
+        host: "auth-service"
+        port: "50051"
+
+kafka:
+    addr:
+        host: "kafka"
+        port: "9092"
+    topic: "user-service"
+    asyncwrite: false
