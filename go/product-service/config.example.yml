@@ -1,0 +1,22 @@
+app:
+  name: "product-service"
+  port: "8001"
+
+db:
+  addr:
+    host: "mongodb"
+    port: "27017"
+  dbname: "products"
+  authsource: "admin"
+
+grpc:
+  authservice:
+    host: "auth-service"
+    port: "50051"
+
+kafka:
+  addr:
+    host: "kafka"
+    port: "9092"
+  topic: "product-service"
+  asyncwrite: false
