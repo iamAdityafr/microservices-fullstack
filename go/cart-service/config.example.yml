@@ -1,0 +1,25 @@
+app:
+  name: "cart-service"
+  port: "8002"
+
+db:
+  addr:
+    host: "mongodb"
+    port: "PORT"
+  dbname: "cart"
+  authsource: "admin"
+
+grpc:
+  authservice:
+    host: "auth-service"
+    port: "PORT"
+  productservice:
+    host: "product-service"
+    port: "PORT"
+
+kafka:
+  addr:
+    host: "kafka"
+    port: "9092"
+  topic: "cart-service"
+  asyncwrite: false
