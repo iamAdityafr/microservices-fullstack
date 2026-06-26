@@ -1,0 +1,22 @@
+app:
+  name: "payment-service"
+  port: "8002"
+
+db:
+  addr:
+    host: "mongodb"
+    port: "PORT"
+  dbname: "payments"
+  authsource: "admin"
+
+grpc:
+  authservice:
+    host: "auth-service"
+    port: "PORT"
+
+kafka:
+  addr:
+    host: "kafka"
+    port: "9092"
+  topic: "payment-service"
+  asyncwrite: false
